@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { ScheduleFormModal } from './schedule-form-modal';
 
 describe('ScheduleFormModal', () => {
@@ -8,6 +9,7 @@ describe('ScheduleFormModal', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ScheduleFormModal],
+      providers: [provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ScheduleFormModal);
