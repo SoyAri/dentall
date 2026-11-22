@@ -23,8 +23,6 @@
 | **Frontend** | [Angular](https://angular.dev/) |
 | **Backend / Base de Datos** | [Supabase](https://supabase.com/) |
 
-> Nota: El stack de backend se encuentra actualmente en fase de definición.
-
 ---
 
 ## Estructura del Proyecto
@@ -149,7 +147,7 @@ Acceso al itinerario diario, registro de nuevas evaluaciones, seguimiento de tra
 [![Monitoreo de producción](https://github.com/SoyAri/dentall/actions/workflows/monitor.yml/badge.svg)](https://github.com/SoyAri/dentall/actions/workflows/monitor.yml)
 
 Herramienta de liberación continua: **GitHub Actions** vinculado a **Vercel** (hosting/CDN) mediante Vercel CLI.
-Backend: **Supabase** (Auth + PostgreSQL). Documento de la actividad: [`docs/ACT-CICD-Dentall.pdf`](docs/ACT-CICD-Dentall.pdf).
+Backend: **Supabase** (Auth + PostgreSQL). Producción: https://dentall-three.vercel.app
 
 ```
 PR ─────────▶ build-test
@@ -182,18 +180,16 @@ Secretos de GitHub Actions: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
 
 ## Entorno de Desarrollo y Despliegue
 
-> Proyecto en fase de estructuración inicial. La base de dependencias se expandirá conforme evolucione el desarrollo.
-
 **1. Clonación del repositorio:**
 
 ```bash
-git clone https://github.com/SoyAri/consultorio-digitaldwi.git
+git clone https://github.com/SoyAri/dentall.git
 ```
 
 **2. Instalación de dependencias:**
 
 ```bash
-npm install
+npm ci
 ```
 
 **3. Ejecución del entorno de desarrollo:**
@@ -222,5 +218,6 @@ ng build
 **6. Ejecución de pruebas automatizadas:**
 
 ```bash
-ng test
+npm run test:ci   # pruebas unitarias con cobertura
+npm run e2e       # pruebas E2E con Playwright
 ```
