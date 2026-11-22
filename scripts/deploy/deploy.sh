@@ -30,8 +30,14 @@ export APP_ENV="$AMBIENTE"
 vercel build "${PROD_FLAG[@]}" --token="$VERCEL_TOKEN"
 
 echo "▶ [3/4] Publicando el build en Vercel"
-URL=$(vercel deploy --prebuilt "${PROD_FLAG[@]}" --token="$VERCEL_TOKEN" \
+SALIDA=$(vercel deploy --prebuilt "${PROD_FLAG[@]}" --token="$VERCEL_TOKEN" \
   --meta commit="${GITHUB_SHA:-local}" --meta ambiente="$AMBIENTE")
+# Sin terminal interactiva la CLI responde en JSON; con terminal, solo la URL.
+URL=$(printf '%s' "$SALIDA" | node -e '
+  const txt = require("fs").readFileSync(0, "utf8").trim();
+  try { console.log(JSON.parse(txt).deployment.url); }
+  catch { console.log(txt.split(/\s+/).filter(s => s.startsWith("https://")).pop() ?? ""); }')
+[ -n "$URL" ] || { echo "✖ No se pudo obtener la URL del despliegue"; echo "$SALIDA"; exit 1; }
 
 if [ "$AMBIENTE" = "staging" ] && [ -n "${STAGING_ALIAS:-}" ]; then
   echo "▶ Asignando alias fijo de staging: $STAGING_ALIAS"

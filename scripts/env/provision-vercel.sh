@@ -20,7 +20,7 @@ vercel link --yes --project "$PROJECT" "${TOKEN_ARG[@]}"
 set_env() {
   local name="$1" value="$2" target="$3"
   vercel env rm "$name" "$target" --yes "${TOKEN_ARG[@]}" >/dev/null 2>&1 || true
-  printf '%s' "$value" | vercel env add "$name" "$target" "${TOKEN_ARG[@]}" >/dev/null
+  printf '%s' "$value" | vercel env add "$name" "$target" "${TOKEN_ARG[@]}" >/dev/null 2>&1
   echo "  $name → $target"
 }
 
