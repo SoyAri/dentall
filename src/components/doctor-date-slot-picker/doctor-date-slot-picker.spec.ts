@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { DoctorDateSlotPicker } from './doctor-date-slot-picker';
 import { DoctorOption } from '../../app/models';
 
@@ -13,6 +14,7 @@ describe('DoctorDateSlotPicker', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DoctorDateSlotPicker],
+      providers: [provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(DoctorDateSlotPicker);

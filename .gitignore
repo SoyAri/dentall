@@ -65,3 +65,9 @@ db.sqlite
 Dockerfile
 nginx.conf
 .dockerignore
+# Pruebas E2E / Vercel
+/playwright-report
+/test-results
+/.lighthouseci
+.vercel
+healthcheck.json

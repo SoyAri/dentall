@@ -1,0 +1,216 @@
+# Pipeline de integración, liberación y despliegue continuo — Consultorio Digital (Dentall)
+#
+#   PR → develop/main  : build-test
+#   push → develop     : build-test → deploy-staging → test-staging
+#   push → main        : build-test → deploy-production → verify-production (rollback si falla)
+name: Pipeline CI/CD
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  VERCEL_CLI: vercel@65.12.1
+  LHCI_CLI: '@lhci/cli@0.15.1'
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  # ── 1. Integración continua: pruebas unitarias + build ─────────────────────
+  build-test:
+    name: Build y pruebas unitarias
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar configuración del entorno
+        run: node scripts/env/generate-env.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          APP_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+
+      - name: Pruebas unitarias con cobertura (Vitest)
+        run: npm run test:ci
+
+      - name: Build de producción (Angular)
+        run: npm run build
+
+      - name: Publicar artefactos (build + cobertura)
+        uses: actions/upload-artifact@v6
+        with:
+          name: build-${{ github.sha }}
+          path: |
+            dist/consultorio-digital/browser
+            coverage/
+          retention-days: 7
+
+  # ── 2. Liberación al entorno de staging (preview de Vercel) ────────────────
+  deploy-staging:
+    name: Desplegar a staging
+    needs: build-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Instalar Vercel CLI
+        run: npm i -g ${{ env.VERCEL_CLI }}
+      - name: Desplegar
+        id: deploy
+        run: bash scripts/deploy/deploy.sh staging
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          STAGING_ALIAS: ${{ vars.STAGING_ALIAS }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+  # ── 3. Pruebas en el entorno de liberación ─────────────────────────────────
+  test-staging:
+    name: Pruebas en staging (E2E, healthcheck, Lighthouse)
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_URL: ${{ needs.deploy-staging.outputs.url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+      E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Instalar Chromium (Playwright)
+        run: npx playwright install --with-deps chromium
+
+      - name: Healthcheck y SLO de latencia
+        run: node scripts/test/healthcheck.mjs "$BASE_URL"
+        env:
+          SLO_LATENCIA_MS: '1500'   # previews sin caché "caliente": SLO más holgado que producción
+
+      - name: Pruebas E2E (Playwright)
+        run: npx playwright test
+
+      - name: Auditoría Lighthouse (rendimiento y accesibilidad)
+        run: >
+          npx ${{ env.LHCI_CLI }} autorun
+          --collect.url="$BASE_URL/"
+          --collect.url="$BASE_URL/login/equipo"
+          --collect.settings.extraHeaders="{\"x-vercel-protection-bypass\":\"$VERCEL_AUTOMATION_BYPASS_SECRET\"}"
+
+      - name: Publicar reporte de Playwright
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: reporte-e2e-staging
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  # ── 4. Despliegue continuo a producción ────────────────────────────────────
+  deploy-production:
+    name: Desplegar a producción
+    needs: build-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Instalar Vercel CLI
+        run: npm i -g ${{ env.VERCEL_CLI }}
+      - name: Desplegar
+        id: deploy
+        run: bash scripts/deploy/deploy.sh production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+  # ── 5. Verificación post-despliegue y rollback automático ──────────────────
+  verify-production:
+    name: Verificar producción
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_URL: ${{ vars.PRODUCTION_URL || needs.deploy-production.outputs.url }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+      E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Healthcheck de producción (SLO 800 ms)
+        run: node scripts/test/healthcheck.mjs "$BASE_URL"
+
+      - name: Smoke tests E2E de producción
+        run: npx playwright test --project=escritorio
+
+      - name: Publicar reporte de Playwright
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: reporte-e2e-produccion
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Instalar Vercel CLI (rollback)
+        if: failure()
+        run: npm i -g ${{ env.VERCEL_CLI }}
+
+      - name: Rollback automático
+        if: failure()
+        run: bash scripts/deploy/rollback.sh
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

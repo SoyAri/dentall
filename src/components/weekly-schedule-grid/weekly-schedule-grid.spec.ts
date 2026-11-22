@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { WeeklyScheduleGrid } from './weekly-schedule-grid';
 import { DoctorSchedule } from '../../app/models';
 
@@ -14,6 +15,7 @@ describe('WeeklyScheduleGrid', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [WeeklyScheduleGrid],
+      providers: [provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(WeeklyScheduleGrid);

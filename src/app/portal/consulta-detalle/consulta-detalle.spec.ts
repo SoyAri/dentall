@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { ConsultaDetalle } from './consulta-detalle';
 
@@ -9,6 +10,8 @@ describe('ConsultaDetalle', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ConsultaDetalle],
+      // Ruta comodín: sin sesión de paciente el componente redirige a /login/paciente.
+      providers: [provideRouter([{ path: '**', children: [] }])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ConsultaDetalle);

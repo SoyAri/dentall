@@ -1,0 +1,35 @@
+# Monitoreo sintético de producción: cada 30 minutos mide disponibilidad y
+# latencia contra los SLO. Si falla, GitHub notifica por correo al responsable.
+name: Monitoreo de producción
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  healthcheck:
+    name: Healthcheck producción
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Medir disponibilidad y latencia
+        run: node scripts/test/healthcheck.mjs "${{ vars.PRODUCTION_URL }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          HEALTHCHECK_JSON: healthcheck.json
+      - name: Guardar métricas
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: healthcheck-${{ github.run_id }}
+          path: healthcheck.json
+          retention-days: 30
