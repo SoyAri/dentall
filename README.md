@@ -143,6 +143,43 @@ Acceso al itinerario diario, registro de nuevas evaluaciones, seguimiento de tra
 
 ---
 
+## Liberación y Despliegue Continuo (CI/CD)
+
+[![Pipeline CI/CD](https://github.com/SoyAri/dentall/actions/workflows/pipeline.yml/badge.svg)](https://github.com/SoyAri/dentall/actions/workflows/pipeline.yml)
+[![Monitoreo de producción](https://github.com/SoyAri/dentall/actions/workflows/monitor.yml/badge.svg)](https://github.com/SoyAri/dentall/actions/workflows/monitor.yml)
+
+Herramienta de liberación continua: **GitHub Actions** vinculado a **Vercel** (hosting/CDN) mediante Vercel CLI.
+Backend: **Supabase** (Auth + PostgreSQL). Documento de la actividad: [`docs/ACT-CICD-Dentall.pdf`](docs/ACT-CICD-Dentall.pdf).
+
+```
+PR ─────────▶ build-test
+develop ────▶ build-test ─▶ deploy-staging ─▶ test-staging (E2E · healthcheck · Lighthouse)
+main ───────▶ build-test ─▶ deploy-production ─▶ verify-production ─(falla)─▶ rollback
+cada 30 min ▶ monitor (healthcheck de producción)
+```
+
+| Entregable | Archivos |
+|---|---|
+| Scripts del flujo de trabajo (pipeline) | [`.github/workflows/pipeline.yml`](.github/workflows/pipeline.yml), [`.github/workflows/monitor.yml`](.github/workflows/monitor.yml) |
+| Generación del entorno de liberación | [`scripts/env/setup-local.sh`](scripts/env/setup-local.sh), [`scripts/env/generate-env.mjs`](scripts/env/generate-env.mjs), [`scripts/env/provision-vercel.sh`](scripts/env/provision-vercel.sh), [`vercel.json`](vercel.json), [`.env.example`](.env.example) |
+| Pruebas en el entorno de liberación | [`e2e/`](e2e/), [`playwright.config.ts`](playwright.config.ts), [`scripts/test/healthcheck.mjs`](scripts/test/healthcheck.mjs), [`lighthouserc.json`](lighthouserc.json) |
+| Generación del despliegue | [`scripts/deploy/deploy.sh`](scripts/deploy/deploy.sh), [`scripts/deploy/rollback.sh`](scripts/deploy/rollback.sh) |
+
+```bash
+npm run env:setup          # prepara la máquina (Node, dependencias, Chromium)
+npm run test:ci            # pruebas unitarias + cobertura
+npm run e2e                # E2E (BASE_URL=<url> para probar un entorno desplegado)
+npm run healthcheck -- <url>
+npm run deploy:staging     # requiere VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+npm run deploy:production
+npm run rollback
+```
+
+Secretos de GitHub Actions: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+`E2E_STAFF_EMAIL`, `E2E_STAFF_PASSWORD`, `VERCEL_AUTOMATION_BYPASS_SECRET`. Variables: `PRODUCTION_URL`, `STAGING_ALIAS` (opcional).
+
+---
+
 ## Entorno de Desarrollo y Despliegue
 
 > Proyecto en fase de estructuración inicial. La base de dependencias se expandirá conforme evolucione el desarrollo.
